@@ -5,6 +5,7 @@
 void uiInitialize();
 void uiRender();
 void uiDataChange();
+void uiKeepAlive();
 void uiViewNext();
 void uiPageNext();
 void uiPagePrevious();

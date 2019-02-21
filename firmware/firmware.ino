@@ -4,6 +4,7 @@
 #include "log.h"
 #include "ui.h"
 
+
 #define PIN_ROTARY_DATA   4
 #define PIN_ROTARY_CLOCK  7
 #define PIN_ROTARY_BUTTON 8
@@ -37,11 +38,14 @@ void pmsOnFrame(PmsData frame)
   logPush(frame);
 
   uiDataChange();
+  uiKeepAlive();
 
   if (Serial)
   {
     Serial.print("PMS frame received: ");
     Serial.print(frameReceiveIndicator, DEC);
+    Serial.print(" @");
+    Serial.print(millis());
     Serial.println();
   }
 }
@@ -66,6 +70,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(PIN_ROTARY_CLOCK), rotaryClockIsr, CHANGE); 
 
   uiInitialize();
+  delay(3000);
 }
 
 void rotaryOnButton()
@@ -108,8 +113,6 @@ void processRotary()
   }
 }
 
-char thingy[] = {0b00101101, 0b11111111, 0b00101101, 0b01011111};
-unsigned long previousMillis = 0;
 void loop()
 {
   while (Serial1.available()) pmsPushByte(Serial1.read());

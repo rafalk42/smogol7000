@@ -2,7 +2,16 @@
 
 #include "ui.h"
 #include "log.h"
+#include "version.h"
 
+
+char keepAliveIndicator[] =
+{
+  (char)0b00101101,
+  (char)0b11111111,
+  (char)0b00101101,
+  (char)0b01011111
+};
 
 enum UiViews { UIV_LIVE, UIV_MINUTE, UIV_HOUR, UIV_DAY };
 UiViews &operator++ (UiViews& view)
@@ -22,11 +31,21 @@ static LCD_ST7032 lcd;
 static UiViews _uiView;
 static bool _uiDirty;
 static int _uiDataPageOffset;
+static unsigned long _uiKeepAlive = 0;
 
 void uiInitialize()
 {
   lcd.begin();
-  lcd.setcontrast(40); //contrast value range is 0-63, try 25@5V or 50@3.3V as a starting value
+  lcd.setcontrast(38); //contrast value range is 0-63, try 25@5V or 50@3.3V as a starting value
+  
+  lcd.clear();
+  lcd.setCursor(0, 5);
+  lcd.print("SMOGOL");
+  lcd.setCursor(1, 4);
+  lcd.print("7000 v");
+  lcd.print(VERSION_MAJOR, DEC);
+  lcd.print(".");
+  lcd.print(VERSION_MINOR, DEC);
 
   _uiView = UIV_LIVE;
   _uiDirty = true;
@@ -39,27 +58,78 @@ void uiRender()
   _uiDirty = false;
   
   lcd.clear();
+
+  lcd.setCursor(0, 15);
+  lcd.print(keepAliveIndicator[_uiKeepAlive % sizeof(keepAliveIndicator)]);
   lcd.setCursor(0, 0);
   switch (_uiView)
   {
     case UIV_LIVE:
     {
-      bool valid = logSampleLatestIsValid();
-      PmsData data = logSampleGetLatest();
+      switch(_uiDataPageOffset)
+      {
+        case 0:
+        {
+          bool valid = logSampleLatestIsValid();
+          PmsData data = logSampleGetLatest();
+    
+          lcd.print("LIVE");
+          
+          lcd.setCursor(1, 1);
+          if (valid) lcd.print(data.atmPm01, DEC);
+          else lcd.print('?');
+          
+          lcd.setCursor(1, 6);
+          if (valid) lcd.print(data.atmPm25, DEC);
+          else lcd.print('?');
+          
+          lcd.setCursor(1, 11);
+          if (valid) lcd.print(data.atmPm10, DEC);
+          else lcd.print('?');
+        }
+        break;
 
-      lcd.print("LIVE");
-      
-      lcd.setCursor(1, 1);
-      if (valid) lcd.print(data.atmPm01, DEC);
-      else lcd.print('?');
-      
-      lcd.setCursor(1, 6);
-      if (valid) lcd.print(data.atmPm25, DEC);
-      else lcd.print('?');
-      
-      lcd.setCursor(1, 11);
-      if (valid) lcd.print(data.atmPm10, DEC);
-      else lcd.print('?');
+        case 1:
+        {
+          unsigned long now = millis();
+          char text[16];
+          sprintf(text, "%lud %luh%02lum%02lus",
+            now / 1000 / 86400,
+            (now / 1000 / 60 / 60) % 24,
+            (now / 1000 / 60) % 60,
+            (now / 1000) % 60);
+
+          lcd.print("UPTIME");
+
+          lcd.setCursor(1, 1);
+          lcd.print(text);
+        }
+        break;
+
+        case 2:
+        {
+          lcd.print("FIRMWARE v");
+          lcd.print(VERSION_MAJOR, DEC);
+          lcd.print(".");
+          lcd.print(VERSION_MINOR, DEC);
+
+          lcd.setCursor(1, 1);
+          lcd.print(VERSION_BUILD_DATE);
+        }
+        break;
+
+        case 3:
+        {
+          lcd.print("FIRMWARE v");
+          lcd.print(VERSION_MAJOR, DEC);
+          lcd.print(".");
+          lcd.print(VERSION_MINOR, DEC);
+
+          lcd.setCursor(1, 1);
+          lcd.print(VERSION_BUILD_TIME);
+        }
+        break;
+      }
     }
     break;
 
@@ -141,6 +211,12 @@ void uiDataChange()
   _uiDirty = true;
 }
 
+void uiKeepAlive()
+{
+  _uiDirty = true;
+  _uiKeepAlive++;
+}
+
 void uiViewNext()
 {
   _uiDirty = true;
@@ -156,6 +232,7 @@ void uiPageNext()
   switch (_uiView)
   {
     case UIV_LIVE:
+      if (_uiDataPageOffset >= 4) _uiDataPageOffset = 3;
     break;
     case UIV_MINUTE:
       if (_uiDataPageOffset >= 60) _uiDataPageOffset = 59;
